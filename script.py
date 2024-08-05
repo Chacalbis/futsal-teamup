@@ -1,12 +1,8 @@
-import yaml
 import argparse
 import random
 import numpy as np
-
-def load_players(file_path):
-    with open(file_path, 'r') as file:
-        data = yaml.safe_load(file)
-    return data['players']
+import yaml
+from google_sheets_reader import get_active_players
 
 def calculate_team_score(team, num_players_per_team):
     total_score = {
@@ -50,9 +46,20 @@ def main():
     parser.add_argument("file_path", help="Chemin vers le fichier YAML des joueurs")
     parser.add_argument("num_teams", type=int, help="Nombre d'équipes")
     parser.add_argument("num_players_per_team", type=int, help="Nombre de joueurs par équipe")
+    parser.add_argument("sheet_url", help="URL de la feuille Google Sheets")
+    parser.add_argument("credentials_path", help="Chemin vers le fichier JSON des credentials")
     args = parser.parse_args()
 
-    players = load_players(args.file_path)
+    # Charger les joueurs depuis le fichier YAML
+    with open(args.file_path, 'r') as file:
+        data = yaml.safe_load(file)
+    all_players = data['players']
+
+    # Charger les joueurs actifs depuis Google Sheets
+    active_player_names = get_active_players(args.sheet_url, args.credentials_path)
+
+    # Filtrer les joueurs actifs à partir de la liste complète
+    players = [player for player in all_players if player['name'] in active_player_names]
     
     if len(players) != args.num_teams * args.num_players_per_team:
         print("Le nombre total de joueurs doit être égal au nombre d'équipes multiplié par le nombre de joueurs par équipe.")
