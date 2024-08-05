@@ -43,20 +43,25 @@ def calculate_teams_balance(teams, num_players_per_team):
 
 def main():
     parser = argparse.ArgumentParser(description="Créer des équipes de futsal équilibrées.")
-    parser.add_argument("file_path", help="Chemin vers le fichier YAML des joueurs")
     parser.add_argument("num_teams", type=int, help="Nombre d'équipes")
     parser.add_argument("num_players_per_team", type=int, help="Nombre de joueurs par équipe")
-    parser.add_argument("sheet_url", help="URL de la feuille Google Sheets")
-    parser.add_argument("credentials_path", help="Chemin vers le fichier JSON des credentials")
     args = parser.parse_args()
 
+    # Lire les paramètres depuis le fichier de configuration
+    with open("config.yaml", 'r') as config_file:
+        config = yaml.safe_load(config_file)
+
+    players_file_path = config['players_file_path']
+    sheet_url = config['sheet_url']
+    credentials_path = config['credentials_path']
+
     # Charger les joueurs depuis le fichier YAML
-    with open(args.file_path, 'r') as file:
+    with open(players_file_path, 'r') as file:
         data = yaml.safe_load(file)
     all_players = data['players']
 
     # Charger les joueurs actifs depuis Google Sheets
-    active_player_names = get_active_players(args.sheet_url, args.credentials_path)
+    active_player_names = get_active_players(sheet_url, credentials_path)
 
     # Filtrer les joueurs actifs à partir de la liste complète
     players = [player for player in all_players if player['name'] in active_player_names]
