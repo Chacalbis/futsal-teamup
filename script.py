@@ -22,13 +22,28 @@ def calculate_team_score(team, num_players_per_team):
 
 def calculate_team_variance(team, num_players_per_team):
     scores = [
-        player['technicalNote'] + player['enduranceNote'] + (player['goalNote'] / num_players_per_team)
+        calculate_player_total_score(player, num_players_per_team)
         for player in team
     ]
     return np.var(scores)
 
+def calculate_team_profile(team):
+    technical_score = sum(player['technicalNote'] for player in team) / len(team)
+    endurance_score = sum(player['enduranceNote'] for player in team) / len(team)
+    return technical_score, endurance_score
+
+def calculate_profile_difference(teams):
+    profiles = [calculate_team_profile(team) for team in teams]
+    differences = []
+    for i in range(len(profiles)):
+        for j in range(i + 1, len(profiles)):
+            tech_diff = abs(profiles[i][0] - profiles[j][0])
+            endurance_diff = abs(profiles[i][1] - profiles[j][1])
+            differences.append(tech_diff + endurance_diff)
+    return sum(differences)
+
 def create_teams(players, num_teams, num_players_per_team):
-    random.shuffle(players)  # Mélanger les joueurs pour éviter les biais
+    random.shuffle(players)  # Mélange des joueurs pour éviter les biais
     teams = [[] for _ in range(num_teams)]
     
     for i, player in enumerate(players):
@@ -39,7 +54,21 @@ def create_teams(players, num_teams, num_players_per_team):
 def calculate_teams_balance(teams, num_players_per_team):
     scores = [calculate_team_score(team, num_players_per_team) for team in teams]
     variances = [calculate_team_variance(team, num_players_per_team) for team in teams]
-    return max(scores) - min(scores), scores, sum(variances)
+    profile_difference = calculate_profile_difference(teams)
+    return max(scores) - min(scores), scores, sum(variances), profile_difference
+
+def calculate_player_total_score(player, num_players_per_team):
+    return player['technicalNote'] + player['enduranceNote'] + (player['goalNote'] / num_players_per_team)
+
+def calculate_cost(balance, variance, profile_difference, weight_balance=0.3, weight_profile=0.5, weight_variance=0.2):
+    '''
+    On utilise des poids pour déterminer l'importance des critères
+
+    Critère principal : différence de profil entre les équipes
+    Critère secondaire : momyenne globale entre les équipes
+    Critère tertiaire : variance faible au sein des équipes
+    '''
+    return (weight_balance * balance) + (weight_profile * profile_difference) + (weight_variance * variance)
 
 def main():
     parser = argparse.ArgumentParser(description="Créer des équipes de futsal équilibrées.")
@@ -47,7 +76,7 @@ def main():
     parser.add_argument("num_players_per_team", type=int, help="Nombre de joueurs par équipe")
     args = parser.parse_args()
 
-    # Lire les paramètres depuis le fichier de configuration
+    # Récupération des paramètres depuis le fichier de conf
     with open("config.yaml", 'r') as config_file:
         config = yaml.safe_load(config_file)
 
@@ -55,41 +84,46 @@ def main():
     sheet_url = config['sheet_url']
     credentials_path = config['credentials_path']
 
-    # Charger les joueurs depuis le fichier YAML
+    # Chargement des joueurs depuis le YAML
     with open(players_file_path, 'r') as file:
         data = yaml.safe_load(file)
     all_players = data['players']
 
-    # Charger les joueurs actifs depuis Google Sheets
+    # Chargement des joueurs actifs depuis Google Sheets
     active_player_names = get_active_players(sheet_url, credentials_path)
 
-    # Filtrer les joueurs actifs à partir de la liste complète
+    # Filtrage des joueurs actifs à partir de la liste complète
     players = [player for player in all_players if player['name'] in active_player_names]
     
     if len(players) != args.num_teams * args.num_players_per_team:
         print("Le nombre total de joueurs doit être égal au nombre d'équipes multiplié par le nombre de joueurs par équipe.")
         return
 
-    best_balance = float('inf')
-    best_variance = float('inf')
+    best_cost = float('inf')
     best_teams = None
     
     for _ in range(10000):  # Effectuer plusieurs tentatives pour trouver la meilleure répartition
         teams = create_teams(players, args.num_teams, args.num_players_per_team)
-        balance, scores, variance = calculate_teams_balance(teams, args.num_players_per_team)
-        
-        if balance < best_balance or (balance == best_balance and variance < best_variance):
-            best_balance = balance
-            best_variance = variance
+        balance, scores, variance, profile_difference = calculate_teams_balance(teams, args.num_players_per_team)
+
+        # Calcul du coût global
+        cost = calculate_cost(balance, variance, profile_difference)
+
+        if cost < best_cost:
+            best_cost = cost
             best_teams = teams
             best_scores = scores
+            best_balance = balance
+            best_variance = variance
+            best_profile_difference = profile_difference
     
     print(f"Écart de score minimal entre les équipes : {best_balance}")
     print(f"Variance totale des équipes : {best_variance}")
+    print(f"Différence de profil entre les équipes : {best_profile_difference}")
     for i, team in enumerate(best_teams):
         print(f"\nÉquipe {i + 1} (Score total: {best_scores[i]}):")
         for player in team:
-            print(player['name'])
+            print(f"{player['name']}")
 
 if __name__ == "__main__":
     main()
