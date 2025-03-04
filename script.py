@@ -64,9 +64,9 @@ def calculate_cost(balance, variance, profile_difference, weight_balance=0.3, we
     '''
     On utilise des poids pour déterminer l'importance des critères
 
-    Critère principal : différence de profil entre les équipes
-    Critère secondaire : momyenne globale entre les équipes
-    Critère tertiaire : variance faible au sein des équipes
+    Critère 1 : différence de profil entre les équipes
+    Critère 2 : moyenne globale entre les équipes
+    Critère 3 : variance faible au sein des équipes
     '''
     return (weight_balance * balance) + (weight_profile * profile_difference) + (weight_variance * variance)
 

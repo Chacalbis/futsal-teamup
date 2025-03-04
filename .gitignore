@@ -1,2 +1,5 @@
 __pycache__/
 token.pickle
+players.yaml
+config.yaml
+client_secret.apps.googleusercontent.com.json
