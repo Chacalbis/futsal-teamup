@@ -64,11 +64,9 @@ The script uses a cost function that combines these criteria with adjustable wei
 * weight_profile: Importance of matching team profiles.
 * weight_variance: Importance of minimizing intra-team variance.
 
-These weights can be adjusted in code to prioritize different aspects of team balance.
+These weights can be adjusted in the configuration file to prioritize different aspects of team balance.
 
 ## TODO
-
-Weights should be editable in config.yaml file.
 
 Develop a version (specific branch or command argument) where active players are not retrieved from a google sheet.
 
