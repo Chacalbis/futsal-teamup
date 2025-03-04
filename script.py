@@ -124,12 +124,22 @@ def main():
 
     # Chargement des joueurs actifs depuis Google Sheets
     sheets_reader = GoogleSheetsReader(config['sheet_url'], config['credentials_path'])
-    active_players = sheets_reader.get_active_players()
-    players = [p for p in all_players if p.name in active_players]
+    active_player_names = sheets_reader.get_active_players()
 
-    # Vérification du nombre de joueurs
-    if len(players) != args.num_teams * args.num_players_per_team:
-        print("Le nombre total de joueurs doit être égal au nombre d'équipes multiplié par le nombre de joueurs par équipe.")
+    # Vérification des joueurs manquants dans players.yaml
+    all_player_names = {p.name for p in all_players}
+    missing_players = [name for name in active_player_names if name not in all_player_names]
+    if missing_players:
+        print(f"Erreur : Les joueurs suivants sont inscrits dans Google Sheets mais absents du fichier de notation {config['players_file_path']} : {', '.join(missing_players)}")
+        return
+
+    # Filtrage des joueurs actifs
+    players = [p for p in all_players if p.name in active_player_names]
+
+    # Vérification du nombre total de joueurs
+    expected_total = args.num_teams * args.num_players_per_team
+    if len(players) != expected_total:
+        print(f"Erreur : Le nombre de joueurs actifs ({len(players)}) ne correspond pas au total attendu ({expected_total}) pour {args.num_teams} équipes de {args.num_players_per_team} joueurs chacune.")
         return
 
     # Création et équilibrage des équipes avec la config
