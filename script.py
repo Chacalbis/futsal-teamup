@@ -2,7 +2,7 @@ import argparse
 import random
 import numpy as np
 import yaml
-from google_sheets_reader import GoogleSheetsReader  # On utilisera une classe ici
+from google_sheets_reader import GoogleSheetsReader
 
 class Player:
     # Représente un joueur avec ses notes
@@ -12,21 +12,21 @@ class Player:
         self.endurance_note = endurance_note
         self.goal_note = goal_note
 
+    # Calcule le score total du joueur
     def total_score(self, num_players_per_team):
-        # Calcule le score total du joueur.
         return self.technical_note + self.endurance_note + (self.goal_note / num_players_per_team)
 
 class Team:
-    # Représente une équipe de joueurs.
+    # Représente une équipe de joueurs
     def __init__(self, players=None):
         self.players = players if players else []
 
+    # Ajoute un joueur à l'équipe
     def add_player(self, player):
-        # Ajoute un joueur à l'équipe.
         self.players.append(player)
 
+    # Calcule le score total de l'équipe
     def total_score(self, num_players_per_team):
-        # Calcule le score total de l'équipe.
         total = {
             'technical': sum(p.technical_note for p in self.players),
             'endurance': sum(p.endurance_note for p in self.players),
@@ -34,13 +34,13 @@ class Team:
         }
         return sum(total.values())
 
+    # Calcule la variance des scores des joueurs dans l'équipe
     def variance(self, num_players_per_team):
-        # Calcule la variance des scores des joueurs dans l'équipe.
         scores = [p.total_score(num_players_per_team) for p in self.players]
         return np.var(scores)
 
+    # Calcule le profil moyen de l'équipe (technique, endurance)
     def profile(self):
-        # Calcule le profil moyen de l'équipe (technique, endurance).
         if not self.players:
             return 0, 0
         technical = sum(p.technical_note for p in self.players) / len(self.players)
@@ -48,17 +48,19 @@ class Team:
         return technical, endurance
 
 class TeamBalancer:
-    # Gère la création et l'équilibrage des équipes.
-    def __init__(self, players, num_teams, num_players_per_team):
+    # Gère la création et l'équilibrage des équipes
+    def __init__(self, players, num_teams, num_players_per_team, config):
         self.players = players
         self.num_teams = num_teams
         self.num_players_per_team = num_players_per_team
-        self.weight_balance = 0.3
-        self.weight_profile = 0.5
-        self.weight_variance = 0.2
+        # Charge les poids depuis la config
+        weights = config.get('weights', {})
+        self.weight_balance = weights.get('balance', 0.3)
+        self.weight_variance = weights.get('variance', 0.2)
+        self.weight_profile = weights.get('profile', 0.5)
 
+    # Crée des équipes aléatoires
     def create_teams(self):
-        # Crée des équipes aléatoires.
         shuffled_players = self.players.copy()
         random.shuffle(shuffled_players)
         teams = [Team() for _ in range(self.num_teams)]
@@ -66,8 +68,8 @@ class TeamBalancer:
             teams[i % self.num_teams].add_player(player)
         return teams
 
+    # Évalue l'équilibre des équipes
     def evaluate_teams(self, teams):
-        # Évalue l'équilibre des équipes.
         scores = [team.total_score(self.num_players_per_team) for team in teams]
         balance = max(scores) - min(scores)
         variances = sum(team.variance(self.num_players_per_team) for team in teams)
@@ -75,8 +77,8 @@ class TeamBalancer:
         cost = (self.weight_balance * balance) + (self.weight_profile * profile_diff) + (self.weight_variance * variances)
         return cost, balance, scores, variances, profile_diff
 
+    # Calcule la différence de profil entre les équipes
     def _calculate_profile_difference(self, teams):
-        # Calcule la différence de profil entre les équipes.
         profiles = [team.profile() for team in teams]
         differences = []
         for i in range(len(profiles)):
@@ -86,8 +88,8 @@ class TeamBalancer:
                 differences.append(tech_diff + endurance_diff)
         return sum(differences)
 
+    # Trouve la meilleure répartition des équipes
     def find_best_teams(self, iterations=10000):
-        # Trouve la meilleure répartition des équipes.
         best_cost = float('inf')
         best_teams = None
         best_metrics = None
@@ -130,8 +132,8 @@ def main():
         print("Le nombre total de joueurs doit être égal au nombre d'équipes multiplié par le nombre de joueurs par équipe.")
         return
 
-    # Création et équilibrage des équipes
-    balancer = TeamBalancer(players, args.num_teams, args.num_players_per_team)
+    # Création et équilibrage des équipes avec la config
+    balancer = TeamBalancer(players, args.num_teams, args.num_players_per_team, config)
     best_teams, (balance, scores, variance, profile_diff) = balancer.find_best_teams()
 
     # Affichage des résultats

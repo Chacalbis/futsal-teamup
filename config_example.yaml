@@ -1,3 +1,7 @@
 players_file_path: ""
 sheet_url: ""
 credentials_path: ""
+weights:
+  balance: 0.3
+  profile: 0.5
+  variance: 0.2
