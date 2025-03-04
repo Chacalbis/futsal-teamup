@@ -70,8 +70,6 @@ These weights can be adjusted in the configuration file to prioritize different 
 
 Develop a version (specific branch or command argument) where active players are not retrieved from a google sheet.
 
-Add a more pertinent error message when an active player is not stored in players.yaml file.
-
 It could be interesting to develop the notation system in order to have more skills (FIFA notation system ?)
 
 ## Special Thank
