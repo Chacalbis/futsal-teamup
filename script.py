@@ -6,15 +6,16 @@ from google_sheets_reader import GoogleSheetsReader
 
 class Player:
     # Représente un joueur avec ses notes
-    def __init__(self, name, technical_note, endurance_note, goal_note):
+    def __init__(self, name, tech, phy, vis, goal):
         self.name = name
-        self.technical_note = technical_note
-        self.endurance_note = endurance_note
-        self.goal_note = goal_note
+        self.tech = tech
+        self.phys = phy
+        self.vision = vis
+        self.goal = goal
 
-    # Calcule le score total du joueur
+    # Calcule le score total du joueur, sans vision
     def total_score(self, num_players_per_team):
-        return self.technical_note + self.endurance_note + (self.goal_note / num_players_per_team)
+        return self.tech + self.phys + (self.goal / num_players_per_team)
 
 class Team:
     # Représente une équipe de joueurs
@@ -25,27 +26,28 @@ class Team:
     def add_player(self, player):
         self.players.append(player)
 
-    # Calcule le score total de l'équipe
+    # Calcule le score total de l'équipe, sans vision
     def total_score(self, num_players_per_team):
         total = {
-            'technical': sum(p.technical_note for p in self.players),
-            'endurance': sum(p.endurance_note for p in self.players),
-            'goal': sum(p.goal_note for p in self.players) / num_players_per_team
+            'tech': sum(p.tech for p in self.players),
+            'phys': sum(p.phys for p in self.players),
+            'goal': sum(p.goal for p in self.players) / num_players_per_team
         }
         return sum(total.values())
 
-    # Calcule la variance des scores des joueurs dans l'équipe
+    # Calcule la variance des scores des joueurs dans l'équipe, sans vision
     def variance(self, num_players_per_team):
         scores = [p.total_score(num_players_per_team) for p in self.players]
         return np.var(scores)
 
-    # Calcule le profil moyen de l'équipe (technique, endurance)
+    # Calcule le profil moyen de l'équipe (technique, physique, vision)
     def profile(self):
         if not self.players:
-            return 0, 0
-        technical = sum(p.technical_note for p in self.players) / len(self.players)
-        endurance = sum(p.endurance_note for p in self.players) / len(self.players)
-        return technical, endurance
+            return 0, 0, 0
+        tech = sum(p.tech for p in self.players) / len(self.players)
+        phys = sum(p.phys for p in self.players) / len(self.players)
+        vision = sum(p.vision for p in self.players) / len(self.players)
+        return tech, phys, vision
 
 class TeamBalancer:
     # Gère la création et l'équilibrage des équipes
@@ -58,6 +60,7 @@ class TeamBalancer:
         self.weight_balance = weights.get('balance', 0.3)
         self.weight_variance = weights.get('variance', 0.2)
         self.weight_profile = weights.get('profile', 0.5)
+        self.vision_weight_profile = 1.0  # Poids de vision dans profile_diff
 
     # Crée des équipes aléatoires
     def create_teams(self):
@@ -74,7 +77,7 @@ class TeamBalancer:
         balance = max(scores) - min(scores)
         variances = sum(team.variance(self.num_players_per_team) for team in teams)
         profile_diff = self._calculate_profile_difference(teams)
-        cost = (self.weight_balance * balance) + (self.weight_profile * profile_diff) + (self.weight_variance * variances)
+        cost = (self.weight_balance * balance) + (self.weight_variance * variances) + (self.weight_profile * profile_diff)
         return cost, balance, scores, variances, profile_diff
 
     # Calcule la différence de profil entre les équipes
@@ -84,8 +87,9 @@ class TeamBalancer:
         for i in range(len(profiles)):
             for j in range(i + 1, len(profiles)):
                 tech_diff = abs(profiles[i][0] - profiles[j][0])
-                endurance_diff = abs(profiles[i][1] - profiles[j][1])
-                differences.append(tech_diff + endurance_diff)
+                phys_diff = abs(profiles[i][1] - profiles[j][1])
+                vision_diff = abs(profiles[i][2] - profiles[j][2]) * self.vision_weight_profile
+                differences.append(tech_diff + phys_diff + vision_diff)
         return sum(differences)
 
     # Trouve la meilleure répartition des équipes
@@ -118,7 +122,7 @@ def main():
     with open(config['players_file_path'], 'r') as file:
         data = yaml.safe_load(file)
     all_players = [
-        Player(p['name'], p['technicalNote'], p['enduranceNote'], p['goalNote'])
+        Player(p['name'], p['tech'], p['phy'], p['vis'], p['goal'])
         for p in data['players']
     ]
 
@@ -130,7 +134,7 @@ def main():
     all_player_names = {p.name for p in all_players}
     missing_players = [name for name in active_player_names if name not in all_player_names]
     if missing_players:
-        print(f"Erreur : Les joueurs suivants sont inscrits dans Google Sheets mais absents du fichier de notation {config['players_file_path']} : {', '.join(missing_players)}")
+        print(f"Erreur : Les joueurs suivants sont actifs dans Google Sheets mais absents du fichier de notation de {config['players_file_path']} : {', '.join(missing_players)}")
         return
 
     # Filtrage des joueurs actifs

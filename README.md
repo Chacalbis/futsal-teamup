@@ -18,17 +18,20 @@ Launch `python3 script.py <num_teams> <num_players_per_team>` and enjoy !
 The format of the yaml file must be a list of dictionaries:
 
     - name: <name>
-      technicalNote: <int>
-      enduranceNote: <int>
-      goalNote: <int>
+      tech: <int>
+      phy: <int>
+      vis: <int>
+      goal: <int>
     - name: <name>
-      technicalNote: <int>
-      enduranceNote: <int>
-      goalNote: <int>
+      tech: <int>
+      phy: <int>
+      vis: <int>
+      goal: <int>
     - name: <name>
-      technicalNote: <int>
-      enduranceNote: <int>
-      goalNote: <int>
+      tech: <int>
+      phy: <int>
+      vis: <int>
+      goal: <int>
 
 I have been rating based on 1-10 but the solution should work based on any skill
 rating system, as long as it remains an integer.
@@ -52,8 +55,8 @@ Please note, the number of players must be evenly divisable by `k` and `n`.
 
 The program creates new team assignments based on the pool of combinations generator style.
 
-* Profile Difference: Ensures that teams have similar technical and endurance profiles. This is the primary criterion to avoid mismatches like a highly enduring team against a less enduring one.
-* Score Balance: Minimizes the difference in overall scores between the teams.
+* Profile Difference: Ensures that teams have similar technical, endurance and vision profiles. This is the primary criterion to avoid mismatches like a highly enduring team against a less enduring one.
+* Score Balance: Minimizes the difference in overall scores between the teams (exclude the vision note which seems less impactful than the others).
 * Variance: Keeps the variance within each team low to maintain cohesion.
 
 ### Adjustable Weights
@@ -69,8 +72,6 @@ These weights can be adjusted in the configuration file to prioritize different 
 ## TODO
 
 Develop a version (specific branch or command argument) where active players are not retrieved from a google sheet.
-
-It could be interesting to develop the notation system in order to have more skills (FIFA notation system ?)
 
 ## Special Thank
 
