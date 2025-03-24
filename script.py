@@ -40,14 +40,15 @@ class Team:
         scores = [p.total_score(num_players_per_team) for p in self.players]
         return np.var(scores)
 
-    # Calcule le profil moyen de l'équipe (technique, physique, vision)
+    # Calcule le profil moyen de l'équipe (technique, physique, vision) + goal pour affichage
     def profile(self):
         if not self.players:
-            return 0, 0, 0
+            return 0, 0, 0, 0
         tech = sum(p.tech for p in self.players) / len(self.players)
         phys = sum(p.phys for p in self.players) / len(self.players)
         vision = sum(p.vision for p in self.players) / len(self.players)
-        return tech, phys, vision
+        goal = sum(p.goal for p in self.players) / len(self.players)  # Moyenne brute, sans division par num_players_per_team
+        return tech, phys, vision, goal
 
 class TeamBalancer:
     # Gère la création et l'équilibrage des équipes
@@ -77,10 +78,12 @@ class TeamBalancer:
         balance = max(scores) - min(scores)
         variances = sum(team.variance(self.num_players_per_team) for team in teams)
         profile_diff = self._calculate_profile_difference(teams)
+        # Calcule les moyennes de chaque critère pour chaque équipe
+        profiles = [team.profile() for team in teams]
         cost = (self.weight_balance * balance) + (self.weight_variance * variances) + (self.weight_profile * profile_diff)
-        return cost, balance, scores, variances, profile_diff
+        return cost, balance, scores, variances, profile_diff, profiles
 
-    # Calcule la différence de profil entre les équipes
+    # Calcule la différence de profil entre les équipes (sans goal)
     def _calculate_profile_difference(self, teams):
         profiles = [team.profile() for team in teams]
         differences = []
@@ -100,11 +103,11 @@ class TeamBalancer:
 
         for _ in range(iterations):
             teams = self.create_teams()
-            cost, balance, scores, variance, profile_diff = self.evaluate_teams(teams)
+            cost, balance, scores, variance, profile_diff, profiles = self.evaluate_teams(teams)
             if cost < best_cost:
                 best_cost = cost
                 best_teams = teams
-                best_metrics = (balance, scores, variance, profile_diff)
+                best_metrics = (balance, scores, variance, profile_diff, profiles)
 
         return best_teams, best_metrics
 
@@ -148,12 +151,17 @@ def main():
 
     # Création et équilibrage des équipes avec la config
     balancer = TeamBalancer(players, args.num_teams, args.num_players_per_team, config)
-    best_teams, (balance, scores, variance, profile_diff) = balancer.find_best_teams()
+    best_teams, (balance, scores, variance, profile_diff, profiles) = balancer.find_best_teams()
 
     # Affichage des résultats
     print(f"Écart de score minimal entre les équipes : {balance}")
     print(f"Variance totale des équipes : {variance}")
-    print(f"Différence de profil entre les équipes : {profile_diff}")
+    print("\nComparaison des profils d'équipe :")
+    print(f"{'Équipe':<10} | {'Tech':>6} | {'Phys':>6} | {'Vision':>6} | {'Goal':>6}")
+    print("-" * 43)
+    for i, (tech, phys, vision, goal) in enumerate(profiles):
+        print(f"Équipe {i + 1:<4} | {tech:>6.1f} | {phys:>6.1f} | {vision:>6.1f} | {goal:>6.1f}")
+
     for i, team in enumerate(best_teams):
         print(f"\nÉquipe {i + 1} (Score total: {scores[i]}):")
         for player in team.players:
