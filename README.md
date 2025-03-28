@@ -13,6 +13,13 @@ Copy `config_example.yaml` to `config.yaml` and fill `sheet_url` and `credential
 
 Launch `python3 script.py <num_teams> <num_players_per_team>` and enjoy !
 
+### Docker
+
+Build the image locally : `docker build -t futsal-teamup .`
+
+Then you can run it `docker run --rm -v $(pwd):/app futsal-teamup python script.py <num_teams> <num_players_per_team>`
+
+
 ## Players yaml format
 
 The format of the yaml file must be a list of dictionaries:
