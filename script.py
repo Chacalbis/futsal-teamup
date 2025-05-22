@@ -3,9 +3,11 @@ import random
 import numpy as np
 import yaml
 from google_sheets_reader import GoogleSheetsReader
+from colorama import init, Fore, Style
+
+init()
 
 class Player:
-    # Représente un joueur avec ses notes
     def __init__(self, name, tech, phy, vis, goal):
         self.name = name
         self.tech = tech
@@ -13,20 +15,16 @@ class Player:
         self.vision = vis
         self.goal = goal
 
-    # Calcule le score total du joueur, sans vision
     def total_score(self, num_players_per_team):
         return self.tech + self.phys + (self.goal / num_players_per_team)
 
 class Team:
-    # Représente une équipe de joueurs
     def __init__(self, players=None):
         self.players = players if players else []
 
-    # Ajoute un joueur à l'équipe
     def add_player(self, player):
         self.players.append(player)
 
-    # Calcule le score total de l'équipe, sans vision
     def total_score(self, num_players_per_team):
         total = {
             'tech': sum(p.tech for p in self.players),
@@ -35,55 +33,51 @@ class Team:
         }
         return sum(total.values())
 
-    # Calcule la variance des scores des joueurs dans l'équipe, sans vision
     def variance(self, num_players_per_team):
         scores = [p.total_score(num_players_per_team) for p in self.players]
-        return np.var(scores)
+        return np.var(scores) if scores else 0
 
-    # Calcule le profil moyen de l'équipe (technique, physique, vision) + goal pour affichage
     def profile(self):
         if not self.players:
             return 0, 0, 0, 0
         tech = sum(p.tech for p in self.players) / len(self.players)
         phys = sum(p.phys for p in self.players) / len(self.players)
         vision = sum(p.vision for p in self.players) / len(self.players)
-        goal = sum(p.goal for p in self.players) / len(self.players)  # Moyenne brute, sans division par num_players_per_team
+        goal = sum(p.goal for p in self.players) / len(self.players)
         return tech, phys, vision, goal
 
 class TeamBalancer:
-    # Gère la création et l'équilibrage des équipes
-    def __init__(self, players, num_teams, num_players_per_team, config):
+    def __init__(self, players, team_sizes, config):
         self.players = players
-        self.num_teams = num_teams
-        self.num_players_per_team = num_players_per_team
-        # Charge les poids depuis la config
+        self.team_sizes = team_sizes
+        self.num_teams = len(team_sizes)
         weights = config.get('weights', {})
         self.weight_balance = weights.get('balance', 0.3)
         self.weight_variance = weights.get('variance', 0.2)
         self.weight_profile = weights.get('profile', 0.5)
-        self.vision_weight_profile = 1.0  # Poids de vision dans profile_diff
+        self.vision_weight_profile = 1.0
 
-    # Crée des équipes aléatoires
     def create_teams(self):
         shuffled_players = self.players.copy()
         random.shuffle(shuffled_players)
         teams = [Team() for _ in range(self.num_teams)]
-        for i, player in enumerate(shuffled_players):
-            teams[i % self.num_teams].add_player(player)
+        player_index = 0
+        for i, size in enumerate(self.team_sizes):
+            for _ in range(size):
+                if player_index < len(shuffled_players):
+                    teams[i].add_player(shuffled_players[player_index])
+                    player_index += 1
         return teams
 
-    # Évalue l'équilibre des équipes
     def evaluate_teams(self, teams):
-        scores = [team.total_score(self.num_players_per_team) for team in teams]
+        scores = [team.total_score(len(team.players)) for team in teams]
         balance = max(scores) - min(scores)
-        variances = sum(team.variance(self.num_players_per_team) for team in teams)
+        variances = sum(team.variance(len(team.players)) for team in teams)
         profile_diff = self._calculate_profile_difference(teams)
-        # Calcule les moyennes de chaque critère pour chaque équipe
         profiles = [team.profile() for team in teams]
         cost = (self.weight_balance * balance) + (self.weight_variance * variances) + (self.weight_profile * profile_diff)
         return cost, balance, scores, variances, profile_diff, profiles
 
-    # Calcule la différence de profil entre les équipes (sans goal)
     def _calculate_profile_difference(self, teams):
         profiles = [team.profile() for team in teams]
         differences = []
@@ -95,7 +89,6 @@ class TeamBalancer:
                 differences.append(tech_diff + phys_diff + vision_diff)
         return sum(differences)
 
-    # Trouve la meilleure répartition des équipes
     def find_best_teams(self, iterations=10000):
         best_cost = float('inf')
         best_teams = None
@@ -111,10 +104,17 @@ class TeamBalancer:
 
         return best_teams, best_metrics
 
+def colorize_value(value):
+    if value >= 7:
+        return f"{Fore.GREEN}{value:>6.1f}{Style.RESET_ALL}"
+    elif value >= 5:
+        return f"{Fore.YELLOW}{value:>6.1f}{Style.RESET_ALL}"
+    else:
+        return f"{Fore.RED}{value:>6.1f}{Style.RESET_ALL}"
+
 def main():
     parser = argparse.ArgumentParser(description="Créer des équipes de futsal équilibrées.")
-    parser.add_argument("num_teams", type=int, help="Nombre d'équipes")
-    parser.add_argument("num_players_per_team", type=int, help="Nombre de joueurs par équipe")
+    parser.add_argument("--team-sizes", type=int, nargs='+', required=True, help="Tailles des équipes (ex. : 5 4)")
     args = parser.parse_args()
 
     # Chargement de la configuration
@@ -144,13 +144,13 @@ def main():
     players = [p for p in all_players if p.name in active_player_names]
 
     # Vérification du nombre total de joueurs
-    expected_total = args.num_teams * args.num_players_per_team
+    expected_total = sum(args.team_sizes)
     if len(players) != expected_total:
-        print(f"Erreur : Le nombre de joueurs actifs ({len(players)}) ne correspond pas au total attendu ({expected_total}) pour {args.num_teams} équipes de {args.num_players_per_team} joueurs chacune.")
+        print(f"Erreur : Le nombre de joueurs actifs ({len(players)}) ne correspond pas au total attendu ({expected_total}) pour les tailles d'équipes {args.team_sizes}.")
         return
 
-    # Création et équilibrage des équipes avec la config
-    balancer = TeamBalancer(players, args.num_teams, args.num_players_per_team, config)
+    # Création et équilibrage des équipes
+    balancer = TeamBalancer(players, args.team_sizes, config)
     best_teams, (balance, scores, variance, profile_diff, profiles) = balancer.find_best_teams()
 
     # Affichage des résultats
@@ -160,10 +160,14 @@ def main():
     print(f"{'Équipe':<10} | {'Tech':>6} | {'Phys':>6} | {'Vision':>6} | {'Goal':>6}")
     print("-" * 43)
     for i, (tech, phys, vision, goal) in enumerate(profiles):
-        print(f"Équipe {i + 1:<4} | {tech:>6.1f} | {phys:>6.1f} | {vision:>6.1f} | {goal:>6.1f}")
+        tech_colored = colorize_value(tech)
+        phys_colored = colorize_value(phys)
+        vision_colored = colorize_value(vision)
+        goal_colored = colorize_value(goal)
+        print(f"Équipe {i + 1:<4} | {tech_colored} | {phys_colored} | {vision_colored} | {goal_colored}")
 
     for i, team in enumerate(best_teams):
-        print(f"\nÉquipe {i + 1} (Score total: {scores[i]}):")
+        print(f"\nÉquipe {i + 1} ({len(team.players)} joueurs, Score total: {scores[i]:.1f}):")
         for player in team.players:
             print(f"{player.name}")
 
