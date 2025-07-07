@@ -171,5 +171,14 @@ def main():
         for player in team.players:
             print(f"{player.name}")
 
+    # Enregistrement du tirage dans l'onglet Statistiques du Google Sheet
+    if len(best_teams) == 2:  # uniquement pour 2 équipes (ça devrait exclure les tournois)
+        try:
+            sheets_reader.save_match_result(best_teams)
+            print("Tirage enregistré dans l'onglet Tirages. Veuillez entrer la différence de buts manuellement après le match <3.")
+        except Exception as e:
+            print(f"Erreur lors de l'enregistrement dans Google Sheets : {e}")
+
+
 if __name__ == "__main__":
     main()
