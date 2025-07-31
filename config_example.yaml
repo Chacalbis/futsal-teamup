@@ -5,3 +5,8 @@ weights:
   balance: 0.3
   profile: 0.5
   variance: 0.2
+zulip:
+  api_key: ""
+  email: ""
+  url: ""
+  stream: ""

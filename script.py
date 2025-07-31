@@ -2,8 +2,10 @@ import argparse
 import random
 import numpy as np
 import yaml
+import requests
 from google_sheets_reader import GoogleSheetsReader
 from colorama import init, Fore, Style
+from datetime import datetime
 
 init()
 
@@ -111,6 +113,52 @@ def colorize_value(value):
         return f"{Fore.YELLOW}{value:>6.1f}{Style.RESET_ALL}"
     else:
         return f"{Fore.RED}{value:>6.1f}{Style.RESET_ALL}"
+    
+def send_to_zulip(config, teams, scores, profiles):
+    # Envoi du tirage sur Zulip dans un sujet dynamique
+    zulip_config = config.get('zulip', {})
+    if not all(key in zulip_config for key in ['url', 'api_key', 'email', 'stream']):
+        print("Warning: Zulip configuration missing or incomplete in config.yaml. Skipping Zulip posting.")
+        return
+
+    topic = f"Foot du {datetime.now().strftime('%d/%m/%Y')} ⚽"
+
+    # Formatage du message
+    message = "**Résultats du tirage**\n\n"
+    message += f"**Différence minimale entre équipes** : {scores[0] - min(scores):.1f}\n"
+    message += f"**Variance totale** : {sum(team.variance(len(team.players)) for team in teams):.1f}\n\n"
+    message += "**Comparaison des profils d'équipe**:\n"
+    message += "```markdown\n"
+    message += f"{'Équipe':<10} | {'Tech':>6} | {'Phys':>6} | {'Vision':>6} | {'Goal':>6}\n"
+    message += "-" * 48 + "\n"
+    for i, (tech, phys, vision, goal) in enumerate(profiles):
+        message += f"Équipe {i + 1:<4} | {tech:>6.1f} | {phys:>6.1f} | {vision:>6.1f} | {goal:>6.1f}\n"
+    message += "```\n\n"
+    for i, team in enumerate(teams):
+        message += f"**Équipe {i + 1}** ({len(team.players)} joueurs, Score total : {scores[i]:.1f}):\n"
+        for player in team.players:
+            message += f"- {player.name}\n"
+        message += "\n"
+    message += "Tirage enregistré dans l'onglet. Veuillez entrer la différence de buts manuellement après le match :pray: ."
+
+    # Envoi du message
+    url = f"{zulip_config['url']}/messages"
+    data = {
+        "type": "stream",
+        "to": zulip_config['stream'],
+        "topic": topic,
+        "content": message
+    }
+    try:
+        response = requests.post(
+            url,
+            data=data,
+            auth=(zulip_config['email'], zulip_config['api_key'])
+        )
+        response.raise_for_status()
+        print(f"Publié avec succès sur Zulip dans le stream '{zulip_config['stream']}' et le topic '{topic}'.")
+    except requests.RequestException as e:
+        print(f"Erreur lors de la publication sur Zulip : {e}")
 
 def main():
     parser = argparse.ArgumentParser(description="Créer des équipes de futsal équilibrées.")
@@ -175,10 +223,11 @@ def main():
     if len(best_teams) == 2:  # uniquement pour 2 équipes (ça devrait exclure les tournois)
         try:
             sheets_reader.save_match_result(best_teams)
-            print("Tirage enregistré dans l'onglet Tirages. Veuillez entrer la différence de buts manuellement après le match <3.")
         except Exception as e:
             print(f"Erreur lors de l'enregistrement dans Google Sheets : {e}")
 
+    # Envoi sur Zulip
+    send_to_zulip(config, best_teams, scores, profiles)
 
 if __name__ == "__main__":
     main()
